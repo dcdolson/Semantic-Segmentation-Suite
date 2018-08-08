@@ -147,8 +147,8 @@ if "Res152" in args.model and not os.path.isfile("models/resnet_v2_152.ckpt"):
 
 # Compute your softmax cross entropy loss
 print("Preparing the model ...")
-net_input = tf.placeholder(tf.float32,shape=[None,None,None,3])
-net_output = tf.placeholder(tf.float32,shape=[None,None,None,num_classes]) 
+net_input = tf.placeholder(tf.float32,shape=[None,None,None,3], name="input_image")
+net_output = tf.placeholder(tf.float32,shape=[None,None,None,num_classes], name="label_image")
 
 
 network = None
@@ -195,9 +195,18 @@ if args.class_balancing:
     losses = unweighted_loss * class_weights
 else:
     losses = tf.nn.softmax_cross_entropy_with_logits(logits=network, labels=net_output)
-loss = tf.reduce_mean(losses)
+loss = tf.reduce_mean(losses, name="reduced_loss")
 
 opt = tf.train.AdamOptimizer(0.0001).minimize(loss, var_list=[var for var in tf.trainable_variables()])
+
+# Do argmax of prediction and label to a single class number per pixel,
+# then compare pixel by pixel, and sum the total True pixels.
+elemwise_equality = tf.equal(tf.argmax(network, axis=-1),
+                             tf.argmax(net_output, axis=-1),
+                             name="prediction_equals_label")
+
+accuracy_tensor = tf.reduce_mean(tf.cast(elemwise_equality, tf.float32),
+                                  name="accuracy")
 
 saver=tf.train.Saver(max_to_keep=1000)
 sess.run(tf.global_variables_initializer())
